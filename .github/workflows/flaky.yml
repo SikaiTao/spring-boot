@@ -29,7 +29,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: maven
+          cache: gradle
 
       ####################################################
       # PREPARE COMMITS
@@ -49,14 +49,15 @@ jobs:
           echo "Target: $TARGET"
 
       ####################################################
-      # DEBUG
+      # DEBUG STRUCTURE
       ####################################################
 
       - name: Show repo structure
         run: |
           pwd
           ls
-          find . -maxdepth 2 -name pom.xml
+          find . -maxdepth 2 -name build.gradle
+          find . -maxdepth 2 -name gradlew
 
       ####################################################
       # PARENT
@@ -68,9 +69,9 @@ jobs:
 
       - name: Build parent
         run: |
-          chmod +x mvnw
+          chmod +x gradlew
 
-          ./mvnw -q -DskipTests clean install
+          ./gradlew assemble -x test
 
       - name: Run parent tests repeatedly
         run: |
@@ -82,7 +83,7 @@ jobs:
             echo "PARENT RUN $i"
             echo "===================="
 
-            ./mvnw test \
+            ./gradlew test \
               > results/parent/run_$i.log 2>&1
 
             echo $? >> results/parent/status.txt
@@ -99,9 +100,9 @@ jobs:
 
       - name: Build target
         run: |
-          chmod +x mvnw
+          chmod +x gradlew
 
-          ./mvnw -q -DskipTests clean install
+          ./gradlew assemble -x test
 
       - name: Run target tests repeatedly
         run: |
@@ -113,7 +114,7 @@ jobs:
             echo "TARGET RUN $i"
             echo "===================="
 
-            ./mvnw test \
+            ./gradlew test \
               > results/target/run_$i.log 2>&1
 
             echo $? >> results/target/status.txt

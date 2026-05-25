@@ -12,10 +12,18 @@ jobs:
 
     steps:
 
+      ####################################################
+      # CHECKOUT
+      ####################################################
+
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      ####################################################
+      # JDK
+      ####################################################
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -23,9 +31,14 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Print target commit
+      ####################################################
+      # TARGET COMMIT
+      ####################################################
+
+      - name: Prepare commits
         run: |
           TARGET=fbd3b65034637ab2ac1b3de264d9a5600e4129dd
+
           echo "TARGET=$TARGET" >> $GITHUB_ENV
 
           PARENT=$(git rev-parse ${TARGET}^)
@@ -34,6 +47,16 @@ jobs:
 
           echo "Parent: $PARENT"
           echo "Target: $TARGET"
+
+      ####################################################
+      # DEBUG STRUCTURE
+      ####################################################
+
+      - name: Show repo structure
+        run: |
+          pwd
+          ls
+          find . -name pom.xml | head -20
 
       ####################################################
       # BUILD PARENT
@@ -45,19 +68,29 @@ jobs:
 
       - name: Build parent
         run: |
-          mvn -q -DskipTests clean install
+          cd spring-boot-project
+
+          ./mvnw -q -DskipTests clean install
+
+      ####################################################
+      # RUN PARENT TESTS
+      ####################################################
 
       - name: Run parent tests repeatedly
         run: |
           mkdir -p results/parent
 
-          for i in {1..20}; do
-            echo "RUN $i"
+          cd spring-boot-project
 
-            mvn test \
-              > results/parent/run_$i.log 2>&1
+          for i in {1..3}; do
+            echo "===================="
+            echo "PARENT RUN $i"
+            echo "===================="
 
-            echo $? >> results/parent/status.txt
+            ./mvnw test \
+              > ../results/parent/run_$i.log 2>&1
+
+            echo $? >> ../results/parent/status.txt
           done
 
       ####################################################
@@ -70,19 +103,29 @@ jobs:
 
       - name: Build target
         run: |
-          mvn -q -DskipTests clean install
+          cd spring-boot-project
+
+          ./mvnw -q -DskipTests clean install
+
+      ####################################################
+      # RUN TARGET TESTS
+      ####################################################
 
       - name: Run target tests repeatedly
         run: |
           mkdir -p results/target
 
-          for i in {1..20}; do
-            echo "RUN $i"
+          cd spring-boot-project
 
-            mvn test \
-              > results/target/run_$i.log 2>&1
+          for i in {1..3}; do
+            echo "===================="
+            echo "TARGET RUN $i"
+            echo "===================="
 
-            echo $? >> results/target/status.txt
+            ./mvnw test \
+              > ../results/target/run_$i.log 2>&1
+
+            echo $? >> ../results/target/status.txt
           done
 
       ####################################################
@@ -92,10 +135,14 @@ jobs:
       - name: Compare results
         run: |
           echo "===== PARENT ====="
-          cat results/parent/status.txt
+          cat results/parent/status.txt || true
 
           echo "===== TARGET ====="
-          cat results/target/status.txt
+          cat results/target/status.txt || true
+
+      ####################################################
+      # UPLOAD RESULTS
+      ####################################################
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

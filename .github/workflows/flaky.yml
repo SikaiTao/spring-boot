@@ -1,0 +1,104 @@
+name: Flaky Commit Validator
+
+on:
+  workflow_dispatch:
+
+jobs:
+  flaky-check:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+
+    steps:
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Print target commit
+        run: |
+          TARGET=fbd3b65034637ab2ac1b3de264d9a5600e4129dd
+          echo "TARGET=$TARGET" >> $GITHUB_ENV
+
+          PARENT=$(git rev-parse ${TARGET}^)
+
+          echo "PARENT=$PARENT" >> $GITHUB_ENV
+
+          echo "Parent: $PARENT"
+          echo "Target: $TARGET"
+
+      ####################################################
+      # BUILD PARENT
+      ####################################################
+
+      - name: Checkout parent
+        run: |
+          git checkout $PARENT
+
+      - name: Build parent
+        run: |
+          mvn -q -DskipTests clean install
+
+      - name: Run parent tests repeatedly
+        run: |
+          mkdir -p results/parent
+
+          for i in {1..20}; do
+            echo "RUN $i"
+
+            mvn test \
+              > results/parent/run_$i.log 2>&1
+
+            echo $? >> results/parent/status.txt
+          done
+
+      ####################################################
+      # BUILD TARGET
+      ####################################################
+
+      - name: Checkout target
+        run: |
+          git checkout $TARGET
+
+      - name: Build target
+        run: |
+          mvn -q -DskipTests clean install
+
+      - name: Run target tests repeatedly
+        run: |
+          mkdir -p results/target
+
+          for i in {1..20}; do
+            echo "RUN $i"
+
+            mvn test \
+              > results/target/run_$i.log 2>&1
+
+            echo $? >> results/target/status.txt
+          done
+
+      ####################################################
+      # ANALYZE
+      ####################################################
+
+      - name: Compare results
+        run: |
+          echo "===== PARENT ====="
+          cat results/parent/status.txt
+
+          echo "===== TARGET ====="
+          cat results/target/status.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flaky-results
+          path: results/
